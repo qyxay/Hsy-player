@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>狐拾一多用户音频播放器（账号+手动输入Key校验）</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { width: 1200px; margin: 40px auto; font-size:16px; font-family: system-ui; }
+        /* 登录面板 */
+        .login-box { width: 520px; margin: 100px auto; border:1px solid #ddd; padding:30px; border-radius:10px; }
+        .login-title { font-size:24px; text-align:center; margin-bottom:24px; }
+        .json-upload { border:1px dashed #999; padding:12px; text-align:center; margin-bottom:16px; border-radius:6px; }
+        .login-tip { margin:10px 0; font-size:14px; }
+        .tip-success { color:#008822; }
+        .tip-error { color:#dd2222; }
+        .user-select-area { margin:16px 0; display:none; }
+        #userSelect { width:100%; padding:10px; font-size:16px; margin-bottom:12px; }
+        #keyInput { width:100%; padding:10px; font-size:16px; }
+        #loginBtn { width:100%; padding:12px; font-size:16px; cursor:pointer; margin-top:10px; }
+        /* 播放器主界面（登录后显示） */
+        .main-player { display: none; grid-template-columns: 450px 1fr; gap:30px; }
+        .header-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid #eee; }
+        #logoutBtn { padding:6px 14px; cursor:pointer; }
+        /* 左侧剧集面板 */
+        .chapter-panel { border:1px solid #ddd; padding:16px; border-radius:8px; max-height:90vh; overflow-y:auto; }
+        .upload-box { margin-bottom:16px; padding:10px; border:1px dashed #999; border-radius:6px; text-align:center; }
+        #fileTip { margin-top:8px; color:#007722; font-size:14px; }
+        .chapter-title { font-size:18px; font-weight:bold; padding:10px 8px; background:#f2f6fc; margin:8px 0; cursor:pointer; border-radius:4px; display:flex; justify-content:space-between; align-items:center; }
+        .ep-list { padding-left:12px; display:none; }
+        .ep-item { padding:6px 8px; margin:4px 0; cursor:pointer; border-radius:4px; font-size:14px; line-height:1.4; }
+        .ep-item:hover { background:#e8f0fe; }
+        /* 右侧播放区 */
+        .play-panel { display:flex; flex-direction:column; gap:20px; }
+        .input-area { display:flex; align-items:center; gap:8px; }
+        #audioName { flex:1; padding:10px; font-size:16px; }
+        #playBtn { padding:10px 22px; font-size:16px; cursor:pointer; white-space:nowrap; }
+        #loadingTip { color:#2277dd; font-weight:bold; display:none; }
+        audio { width: 100%; }
+        .tip { color:#666; line-height:1.7; font-size:14px; }
+        h2 { font-size:22px; margin-bottom:10px; }
+        h3 { margin-bottom:12px; }
+    </style>
+</head>
+<body>
+    <!-- 登录面板（初始显示） -->
+    <div class="login-box" id="loginPanel">
+        <h2 class="login-title">多用户账号登录验证</h2>
+        <div class="json-upload">
+            <input type="file" id="accountJsonFile" accept=".json">
+            <div class="login-tip">上传本地 account.json 读取全部用户账号</div>
+        </div>
+        <div class="login-tip" id="jsonStatus"></div>
+        <!-- 账号下拉 + Key手动输入框 -->
+        <div class="user-select-area" id="userSelectWrap">
+            <label>选择登录账号：</label>
+            <select id="userSelect"></select>
+            <label>输入密钥Key：</label>
+            <input type="password" id="keyInput" placeholder="请手动输入该账号对应的key">
+        </div>
+        <div class="login-tip">
+            JSON多用户数组示例：
+<pre>[
+  {"account":"user01","key":"123456"},
+  {"account":"user02","key":"abcdef"}
+]</pre>
+        </div>
+        <button id="loginBtn" disabled>进入播放器</button>
+    </div>
+
+    <!-- 播放器主界面（登录成功后切换） -->
+    <div class="main-player" id="playerPanel">
+        <div style="grid-column: 1 / -1;" class="header-bar">
+            <div>当前登录账号：<span id="showAccount"></span></div>
+            <button id="logoutBtn">登出</button>
+        </div>
+        <!-- 左侧本地txt上传 + 剧集列表 -->
+        <div class="chapter-panel">
+            <h3>全部篇章剧集列表</h3>
+            <div class="upload-box">
+                <input type="file" id="txtFile" accept=".txt">
+                <div id="fileTip">请选择本地「全剧集清单.txt」加载剧集库</div>
+            </div>
+            <div id="chapterContainer"></div>
+        </div>
+        <!-- 右侧音频播放控制器 -->
+        <div class="play-panel">
+            <h2>音频播放控制器</h2>
+            <div class="input-area">
+                <input id="audioName" placeholder="上传txt后，点击左侧剧集自动填充文件名">
+                <button id="playBtn">加载并缓存播放</button>
+            </div>
+            <div id="loadingTip">正在缓存音频，请稍候...</div>
+            <audio id="audioPlayer" controls preload="auto" crossorigin="anonymous">
+            <div class="tip">
+                使用说明：<br>
+                1. 上传多用户account.json，下拉选择账号，手动输入对应Key校验<br>
+                2. 密钥匹配成功才可进入播放器<br>
+                3. 登录后上传本地 D:\...\全剧集清单.txt<br>
+                4. 自动按篇章分组、集数升序，点击剧集一键填充播放<br>
+                5. 使用github原生media直链，规避CDN FFmpeg解析报错
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局存储全部用户列表、当前登录用户
+        let allUserList = [];
+        let currentUser = {
+            account: "",
+            key: "",
+            valid: false
+        };
+
+        // DOM缓存
+        const loginPanel = document.getElementById("loginPanel");
+        const playerPanel = document.getElementById("playerPanel");
+        const jsonFileInput = document.getElementById("accountJsonFile");
+        const jsonStatusTip = document.getElementById("jsonStatus");
+        const userSelectWrap = document.getElementById("userSelectWrap");
+        const userSelect = document.getElementById("userSelect");
+        const keyInput = document.getElementById("keyInput");
+        const loginButton = document.getElementById("loginBtn");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const showAccountDom = document.getElementById("showAccount");
+
+        const audioEl = document.getElementById('audioPlayer');
+        const loadingTip = document.getElementById('loadingTip');
+        const audioNameInput = document.getElementById('audioName');
+        const chapterContainer = document.getElementById('chapterContainer');
+        const fileTip = document.getElementById('fileTip');
+        const baseRaw = "https://media.githubusercontent.com/media/qyxay/Hu-Shiyi-Divine-Realm-of-the-Other-World/refs/heads/main/one/狐拾一之异界神域丨穿越异世的欢喜冤家丨奇喵宇宙/";
+        const regChapEp = /^(.*?篇) 第(\d+)集/;
+
+        // 1. 读取并解析多用户JSON
+        jsonFileInput.addEventListener("change", function(e){
+            const file = e.target.files[0];
+            // 重置状态
+            allUserList = [];
+            userSelectWrap.style.display = "none";
+            loginButton.disabled = true;
+            keyInput.value = "";
+            userSelect.innerHTML = "";
+            jsonStatusTip.className = "login-tip";
+            if(!file){
+                jsonStatusTip.innerText = "请选择有效的json文件";
+                jsonStatusTip.classList.add("tip-error");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(evt){
+                try{
+                    let rawData = JSON.parse(evt.target.result);
+                    // 兼容单用户对象 转为数组
+                    if(!Array.isArray(rawData)) rawData = [rawData];
+                    // 过滤合法用户（必须同时有account、key）
+                    allUserList = rawData.filter(u => u.account && u.key && u.account.trim() && u.key.trim());
+                    if(allUserList.length === 0) throw new Error("无合法用户，每条用户必须包含account和key");
+                    // 填充下拉选择框
+                    userSelect.innerHTML = "";
+                    allUserList.forEach(user => {
+                        const opt = document.createElement("option");
+                        opt.value = user.account;
+                        opt.innerText = user.account;
+                        userSelect.appendChild(opt);
+                    });
+                    // 展示账号选择+密钥输入区域，解锁登录按钮
+                    userSelectWrap.style.display = "block";
+                    loginButton.disabled = false;
+                    jsonStatusTip.classList.add("tip-success");
+                    jsonStatusTip.innerText = `✅ 读取成功，共 ${allUserList.length} 个可用账号`;
+                }catch(err){
+                    jsonStatusTip.classList.add("tip-error");
+                    jsonStatusTip.innerText = `❌ JSON解析失败：${err.message}`;
+                }
+            }
+            reader.readAsText(file, "utf-8");
+        })
+
+        // 2. 登录校验：比对手动输入的key和文件内存储的key
+        loginButton.addEventListener("click", function(){
+            const selectedAccount = userSelect.value;
+            const inputKey = keyInput.value.trim();
+            if(!inputKey){
+                alert("请输入该账号对应的密钥Key");
+                return;
+            }
+            // 匹配选中用户
+            const matchUser = allUserList.find(u => u.account === selectedAccount);
+            if(!matchUser) return;
+            // 校验密钥是否一致
+            if(inputKey !== matchUser.key){
+                alert("密钥Key错误，请重新输入");
+                keyInput.value = "";
+                keyInput.focus();
+                return;
+            }
+            // 校验通过，登录成功
+            currentUser = {...matchUser, valid:true};
+            // 切换页面
+            loginPanel.style.display = "none";
+            playerPanel.style.display = "grid";
+            showAccountDom.innerText = currentUser.account;
+        })
+
+        // 3. 登出：清空所有用户、登录状态，返回登录页
+        logoutBtn.addEventListener("click", function(){
+            allUserList = [];
+            currentUser = {account:"", key:"", valid:false};
+            jsonFileInput.value = "";
+            userSelect.innerHTML = "";
+            keyInput.value = "";
+            userSelectWrap.style.display = "none";
+            jsonStatusTip.innerText = "";
+            loginButton.disabled = true;
+            // 切回登录面板
+            loginPanel.style.display = "block";
+            playerPanel.style.display = "none";
+            // 清空播放器内容
+            chapterContainer.innerHTML = "";
+            audioNameInput.value = "";
+            audioEl.src = "";
+        })
+
+        // 4. 渲染分篇章剧集列表
+        function renderChapterList(epList) {
+            const chapterMap = {};
+            epList.forEach(epName => {
+                const match = epName.match(regChapEp);
+                if(!match) {
+                    if(!chapterMap["其他"]) chapterMap["其他"] = [];
+                    chapterMap["其他"].push(epName);
+                    return;
+                }
+                const chapName = match[1];
+                if(!chapterMap[chapName]) chapterMap[chapName] = [];
+                chapterMap[chapName].push(epName);
+            });
+            // 同篇章集数数字升序
+            Object.values(chapterMap).forEach(epArr => {
+                epArr.sort((a,b)=>{
+                    const ma = a.match(regChapEp), mb = b.match(regChapEp);
+                    if(!ma || !mb) return 0;
+                    return parseInt(ma[2]) - parseInt(mb[2]);
+                })
+            });
+            chapterContainer.innerHTML = "";
+            const chapOrder = ["其他", ...Object.keys(chapterMap).filter(k=>k !== "其他")];
+            chapOrder.forEach(chapName => {
+                const chapWrap = document.createElement('div');
+                const titleBar = document.createElement('div');
+                titleBar.className = "chapter-title";
+                titleBar.innerHTML = `${chapName} <span>[点击展开]</span>`;
+                const epBox = document.createElement('div');
+                epBox.className = "ep-list";
+                chapterMap[chapName].forEach(epFull => {
+                    const epItem = document.createElement('div');
+                    epItem.className = "ep-item";
+                    epItem.innerText = epFull.replace(".m4a", "");
+                    epItem.onclick = ()=>{ audioNameInput.value = epFull; };
+                    epBox.appendChild(epItem);
+                });
+                // 展开/收起切换
+                titleBar.onclick = ()=>{
+                    const isShow = epBox.style.display === "block";
+                    epBox.style.display = isShow ? "none" : "block";
+                    titleBar.querySelector("span").innerText = isShow ? "[点击展开]" : "[点击收起]";
+                };
+                chapWrap.appendChild(titleBar);
+                chapWrap.appendChild(epBox);
+                chapterContainer.appendChild(chapWrap);
+            });
+        }
+
+        // 5. 读取本地全剧集清单txt
+        document.getElementById('txtFile').addEventListener('change', function(e){
+            const file = e.target.files[0];
+            if(!file){
+                fileTip.innerText = "请选择有效的txt清单文件";
+                fileTip.style.color = "#dd2222";
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(evt){
+                const rawText = evt.target.result;
+                const allEpList = rawText.split("\n")
+                    .map(line => line.trim())
+                    .filter(line => line !== "" && line.endsWith(".m4a"));
+                if(allEpList.length === 0){
+                    fileTip.innerText = "文件内未识别到音频剧集名称";
+                    fileTip.style.color = "#dd2222";
+                    return;
+                }
+                fileTip.innerText = `✅ 成功加载 ${allEpList.length} 条剧集`;
+                fileTip.style.color = "#007722";
+                renderChapterList(allEpList);
+            };
+            reader.readAsText(file, "utf-8");
+        })
+
+        // 6. 音频缓存播放逻辑
+        document.getElementById('playBtn').addEventListener('click', function(){
+            const fileName = audioNameInput.value.trim();
+            if(!fileName){
+                alert("请先上传本地txt清单，再点击左侧剧集选择音频");
+                return;
+            }
+            audioEl.oncanplaythrough = null;
+            audioEl.onerror = null;
+            loadingTip.style.display = 'block';
+            const fullAudioUrl = baseRaw + encodeURIComponent(fileName);
+            console.log("播放链接：", fullAudioUrl, "登录用户：", currentUser.account, "密钥：", currentUser.key);
+
+            audioEl.oncanplaythrough = function(){
+                loadingTip.style.display = 'none';
+                audioEl.play();
+            }
+            audioEl.onerror = function(e){
+                loadingTip.style.display = 'none';
+                const errInfo = e.target.error ? `${e.target.error.code} ${e.target.error.message}` : "音频资源无法读取";
+                alert(`音频加载失败：${errInfo}\n链接：${fullAudioUrl}`);
+            }
+            audioEl.src = fullAudioUrl;
+            audioEl.load();
+        })
+    </script>
+</body>
+</html>
