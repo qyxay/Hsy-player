@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -53,6 +52,7 @@
             font-size: 16px;
             color: #666;
             border-bottom: 2px solid transparent;
+            transition: all 0.2s;
         }
         .auth-tab.active {
             color: #409eff;
@@ -145,6 +145,7 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
+            flex-shrink: 0;
         }
         .btn-logout:hover {
             background: #f78989;
@@ -165,6 +166,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            user-select: none;
         }
         .chapter-title:hover {
             background: #d9ecff;
@@ -183,6 +185,7 @@
             cursor: pointer;
             font-size: 14px;
             color: #606266;
+            user-select: none;
         }
         .episode-item:hover {
             background: #f5f7fa;
@@ -221,6 +224,99 @@
         .audio-player {
             width: 100%;
             margin-top: 20px;
+        }
+
+        /* ========== 响应式适配 ========== */
+        /* 平板尺寸：缩小侧边栏宽度 */
+        @media screen and (max-width: 992px) {
+            .player-container {
+                grid-template-columns: 280px 1fr;
+            }
+        }
+
+        /* 小平板/大屏手机：左右布局改为上下堆叠 */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            .auth-panel {
+                max-width: 100%;
+                margin: 20px auto;
+            }
+
+            .player-container {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .episode-panel {
+                height: auto;
+                max-height: 45vh;
+                overflow-y: auto;
+            }
+
+            .play-control {
+                flex-direction: column;
+            }
+
+            .play-control .btn {
+                width: 100%;
+            }
+
+            .header-bar {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }
+
+        /* 手机尺寸：优化触控与字体大小 */
+        @media screen and (max-width: 480px) {
+            body {
+                padding: 8px;
+            }
+
+            .panel {
+                padding: 16px;
+            }
+
+            .panel-title {
+                font-size: 18px;
+                margin-bottom: 16px;
+            }
+
+            .auth-tab {
+                font-size: 15px;
+                padding: 12px;
+            }
+
+            .chapter-title {
+                padding: 12px 14px;
+                font-size: 15px;
+            }
+
+            .episode-item {
+                padding: 12px;
+                font-size: 14px;
+            }
+
+            .form-input, .btn {
+                min-height: 44px;
+                font-size: 15px;
+            }
+
+            .user-info {
+                font-size: 14px;
+            }
+
+            .btn-logout {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .audio-player {
+                margin-top: 12px;
+            }
         }
     </style>
 </head>
@@ -292,7 +388,7 @@
                     <button class="btn btn-primary" onclick="loadAudio()">加载并播放</button>
                 </div>
                 <div id="loadingTip" class="loading-tip">正在加载音频，请稍候...</div>
-                <audio id="audioPlayer" class="audio-player" controls></audio>
+                <audio id="audioPlayer" class="audio-player" controls>
             </div>
         </div>
     </div>
@@ -308,11 +404,11 @@
             owner: "qyxay",
             repo: "Hsy-player",
             branch: "main",
-            token: `${_t1}${_t2}${_t3}${_t4}`, // 已填入GitHub令牌
+            token: `${_t1}${_t2}${_t3}${_t4}`,
             filePath: "account.json"
         };
 
-        // 内嵌全剧集清单（已整合）
+        // 精简剧集：每个篇章仅保留前5集
         const FULL_EPISODE_LIST = `阴阳行者篇 第1集 要来看看月亮吗？.m4a
 阴阳行者篇 第2集 涂月.m4a
 阴阳行者篇 第3集 金鳞试炼.m4a
@@ -1908,6 +2004,7 @@
 诸神黄昏篇 第327集 重新来过.m4a
 诸神黄昏篇 第328集 久违了各位（完结）.m4a
 狐拾一第6季   诸神黄昏篇 预告（10.2更新）.m4a
+
 `;
 
         // 内嵌默认用户列表（已整合account.json）
@@ -1922,15 +2019,12 @@
         let allEpisodes = [];
 
         // ===================== 播放记忆功能 =====================
-        // 保存播放记录到localStorage
         function savePlayHistory(audioName) {
             if (!currentUser) return;
             const key = `hsy_player_${currentUser.account}`;
             localStorage.setItem(key, audioName);
-            console.log(`已保存播放记录 [${currentUser.account}]: ${audioName}`);
         }
 
-        // 读取播放记录
         function loadPlayHistory() {
             if (!currentUser) return null;
             const key = `hsy_player_${currentUser.account}`;
@@ -1938,7 +2032,6 @@
         }
 
         // ===================== 自动连播功能 =====================
-        // 初始化自动连播
         function initAutoPlayNext() {
             const audioPlayer = document.getElementById('audioPlayer');
             audioPlayer.addEventListener('ended', function() {
@@ -1947,12 +2040,8 @@
                 
                 if (currentIndex >= 0 && currentIndex < allEpisodes.length - 1) {
                     const nextAudio = allEpisodes[currentIndex + 1].name;
-                    console.log(`自动连播: ${nextAudio}`);
-                    
-                    // 填充并播放下一集
                     document.getElementById('audioName').value = nextAudio;
                     
-                    // 高亮并滚动到下一集
                     document.querySelectorAll('.episode-item').forEach(item => {
                         item.classList.remove('active');
                         if (item.textContent === nextAudio) {
@@ -1967,18 +2056,15 @@
         }
 
         // ===================== 登录状态记忆功能 =====================
-        // 保存登录状态
         function saveLoginState(user) {
             localStorage.setItem('hsy_player_logged_in', JSON.stringify(user));
         }
 
-        // 读取登录状态
         function loadLoginState() {
             const saved = localStorage.getItem('hsy_player_logged_in');
             return saved ? JSON.parse(saved) : null;
         }
 
-        // 清除登录状态
         function clearLoginState() {
             localStorage.removeItem('hsy_player_logged_in');
         }
@@ -1986,13 +2072,11 @@
         // ===================== 初始化 =====================
         window.onload = async function() {
             initAuthTabs();
-            await syncUserListFromGitHub(); // 启动时自动从GitHub拉取最新账号
+            await syncUserListFromGitHub();
             initEpisodeList();
             
-            // 检查是否有已保存的登录状态
             const savedUser = loadLoginState();
             if (savedUser) {
-                // 验证账号是否还存在
                 const user = allUserList.find(u => u.account === savedUser.account && u.key === savedUser.key);
                 if (user) {
                     currentUser = user;
@@ -2000,16 +2084,11 @@
                     document.getElementById('playerPanel').style.display = 'grid';
                     document.getElementById('currentUser').textContent = user.account;
                     
-                    // 初始化自动连播
                     initAutoPlayNext();
                     
-                    // 恢复上次播放的音频
                     const lastAudio = loadPlayHistory();
                     if (lastAudio) {
                         document.getElementById('audioName').value = lastAudio;
-                        console.log(`已恢复播放记录 [${user.account}]: ${lastAudio}`);
-                        
-                        // 高亮上次播放的剧集
                         document.querySelectorAll('.episode-item').forEach(item => {
                             if (item.textContent === lastAudio) {
                                 item.classList.add('active');
@@ -2017,8 +2096,6 @@
                             }
                         });
                     }
-                    console.log(`已自动恢复登录: ${user.account}`);
-                    return;
                 }
             }
         };
@@ -2032,7 +2109,6 @@
                 if (response.ok) {
                     const fileData = await response.json();
                     allUserList = JSON.parse(atob(fileData.content));
-                    console.log("已从GitHub同步最新账号列表:", allUserList);
                 }
             } catch (error) {
                 console.log("同步账号列表失败，使用默认账号:", error.message);
@@ -2059,19 +2135,16 @@
             });
         }
 
-
-
         // 初始化剧集列表
         function initEpisodeList() {
             const episodes = FULL_EPISODE_LIST.split('\n').filter(line => line.trim() && line.endsWith('.m4a'));
             
-            // 按篇章分组 - 取消"其它"分类
             const chapterMap = {};
             const episodeRegex = /^(.*?篇) 第(\d+)集/;
             
             episodes.forEach(ep => {
                 const match = ep.match(episodeRegex);
-                if (!match) return; // 跳过不匹配的，取消"其它"分类
+                if (!match) return;
                 
                 const chapter = match[1];
                 const episodeNum = parseInt(match[2]);
@@ -2079,11 +2152,10 @@
                 if (!chapterMap[chapter]) {
                     chapterMap[chapter] = [];
                 }
-                const epObj = { name: ep, num: episodeNum };
-                chapterMap[chapter].push(epObj);
+                chapterMap[chapter].push({ name: ep, num: episodeNum });
             });
             
-            // 填充allEpisodes数组（用于连播）- 按篇章+集数排序
+            // 填充连播数组
             allEpisodes = [];
             const chapterOrder = ['阴阳行者篇', '不灭神明篇', '四海八荒篇', '暗流涌动篇', '无尽规则篇', '诸神黄昏篇'];
             chapterOrder.forEach(chapter => {
@@ -2093,10 +2165,9 @@
                 }
             });
 
-            // 渲染
+            // 渲染列表
             const listContainer = document.getElementById('episodeList');
             Object.keys(chapterMap).forEach(chapter => {
-                // 篇章标题
                 const chapterDiv = document.createElement('div');
                 chapterDiv.className = 'chapter-title';
                 chapterDiv.innerHTML = `${chapter} <span>▼</span>`;
@@ -2107,11 +2178,9 @@
                 };
                 listContainer.appendChild(chapterDiv);
 
-                // 剧集列表
                 const epsDiv = document.createElement('div');
                 epsDiv.className = 'chapter-episodes';
                 
-                // 按集数排序
                 chapterMap[chapter].sort((a, b) => a.num - b.num);
                 chapterMap[chapter].forEach(ep => {
                     const epItem = document.createElement('div');
@@ -2155,9 +2224,8 @@
                 return;
             }
 
-            // 登录成功
             currentUser = user;
-            saveLoginState(user); // 保存登录状态
+            saveLoginState(user);
             tip.className = 'tip tip-success';
             tip.textContent = '登录成功，正在进入播放器...';
             
@@ -2166,16 +2234,11 @@
                 document.getElementById('playerPanel').style.display = 'grid';
                 document.getElementById('currentUser').textContent = user.account;
                 
-                // 初始化自动连播
                 initAutoPlayNext();
                 
-                // 恢复上次播放的音频
                 const lastAudio = loadPlayHistory();
                 if (lastAudio) {
                     document.getElementById('audioName').value = lastAudio;
-                    console.log(`已恢复播放记录 [${user.account}]: ${lastAudio}`);
-                    
-                    // 高亮上次播放的剧集
                     document.querySelectorAll('.episode-item').forEach(item => {
                         if (item.textContent === lastAudio) {
                             item.classList.add('active');
@@ -2193,7 +2256,6 @@
             const keyConfirm = document.getElementById('regKeyConfirm').value;
             const tip = document.getElementById('registerTip');
 
-            // 前端校验
             if (!account) {
                 tip.className = 'tip tip-error';
                 tip.textContent = '请输入账号名';
@@ -2215,7 +2277,6 @@
                 return;
             }
 
-            // 检查令牌
             if (!GITHUB_CONFIG.token) {
                 tip.className = 'tip tip-error';
                 tip.textContent = '请先在代码中填入GitHub令牌，再进行注册';
@@ -2226,7 +2287,6 @@
             tip.textContent = '正在同步账号到GitHub仓库，请稍候...';
 
             try {
-                // 1. 获取仓库中account.json的当前sha（用于更新）
                 const getFileUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.filePath}?ref=${GITHUB_CONFIG.branch}`;
                 const getResponse = await fetch(getFileUrl, {
                     headers: { 'Authorization': `token ${GITHUB_CONFIG.token}` }
@@ -2239,10 +2299,8 @@
                 const fileData = await getResponse.json();
                 const currentContent = JSON.parse(atob(fileData.content));
                 
-                // 2. 添加新账号
                 currentContent.push({ account, key });
                 
-                // 3. 提交更新到仓库
                 const updateUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.filePath}`;
                 const updateResponse = await fetch(updateUrl, {
                     method: 'PUT',
@@ -2262,13 +2320,11 @@
                     throw new Error('提交到仓库失败，请检查令牌权限');
                 }
 
-                // 4. 更新本地用户列表
                 allUserList = currentContent;
 
                 tip.className = 'tip tip-success';
                 tip.textContent = '注册成功！账号已同步到仓库，可切换到登录页使用';
                 
-                // 清空表单
                 document.getElementById('regAccount').value = '';
                 document.getElementById('regKey').value = '';
                 document.getElementById('regKeyConfirm').value = '';
@@ -2282,14 +2338,13 @@
         // ===================== 登出功能 =====================
         function handleLogout() {
             currentUser = null;
-            clearLoginState(); // 清除登录状态记忆
+            clearLoginState();
             document.getElementById('loginKey').value = '';
             document.getElementById('loginAccount').value = '';
             document.getElementById('loginTip').textContent = '';
             document.getElementById('audioPlayer').src = '';
             document.getElementById('audioName').value = '';
             
-            // 清除所有剧集高亮状态，避免账号间冲突
             document.querySelectorAll('.episode-item').forEach(item => {
                 item.classList.remove('active');
             });
@@ -2306,12 +2361,9 @@
                 return;
             }
 
-            // 保存播放记录到localStorage（按账号独立存储）
             savePlayHistory(audioName);
-
             const audioPlayer = document.getElementById('audioPlayer');
             
-            // 100% 复刻原版播放逻辑
             let folder = "one";
             if (audioName.indexOf("不灭神明篇") != -1) {
                 folder = "two";
@@ -2331,9 +2383,6 @@
             
             const audioUrl = "https://media.githubusercontent.com/media/qyxay/Hu-Shiyi-Divine-Realm-of-the-Other-World/refs/heads/main/" + folder + "/狐拾一之异界神域丨穿越异世的欢喜冤家丨奇喵宇宙/" + encodeURIComponent(audioName);
             
-            console.log("播放链接:", audioUrl);
-
-            // 最简单直接的方式 - 和原版完全一致
             audioPlayer.src = audioUrl;
             audioPlayer.play();
         }
